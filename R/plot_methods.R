@@ -360,26 +360,26 @@ prepare_map <- function(x,
 #' @importFrom grDevices rgb blues9
 #' @importFrom graphics rect
 #' @export
-plot_map <- function(x, lg = 1, type = c("mds", "genome"),
+plot_map <- function(x, lg = 1, map_type = c("mds", "genome"),
                      parent = c("p1p2", "p1", "p2"),
                      left.lim = 0, right.lim = Inf,
                      phase = TRUE, mrk.names = FALSE,
                      plot.dose = TRUE, homolog.names.adj = 3,
                      cex = 1, xlim = NULL, main = "",...) {
-  type <- match.arg(type)
-  y <- parse_lg_and_type(x,lg,type)
+  map_type <- match.arg(map_type)
+  y <- parse_lg_and_type(x,lg,map_type)
   parent <- match.arg(parent)
-  assert_that(is.mapped.sequence(x, y$lg, y$type, parent),
+  assert_that(is.mapped.sequence(x, y$lg, y$map_type, parent),
               msg = "Requested map is not estimated")
   assert_that(length(y$lg) ==1 & is.numeric(lg))
 
   v <- detect_hmm_est_map(x)
   u <- apply(v[parent,,,drop=FALSE],1,all)
-  h <- names(u)[1:2][!u[1:2]]
+  h <- names(u)[1:2][u[1:2] == 0]
   if(length(h) == 1)
-    assert_that(u[type], msg = paste(h, "order has not been computed for", parent))
+    assert_that(u[map_type] != 0, msg = paste(h, "order has not been computed for", parent))
   else
-    assert_that(u[type], msg = paste(h[1], "and", h[2],"orders have not been computed for", parent))
+    assert_that(u[map_type], msg = paste(h[1], "and", h[2],"orders have not been computed for", parent))
 
 
   old.par <- par(no.readonly = TRUE)
