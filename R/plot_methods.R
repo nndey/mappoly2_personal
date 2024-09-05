@@ -371,7 +371,7 @@ plot_map <- function(x, lg = 1, map_type = c("mds", "genome"),
   
   y <- parse_lg_and_type(x,lg,map_type)
   
-  assert_that(is.mapped.sequence(x, y$lg, y$map_type, parent),
+ assert_that(mappoly2:::is.mapped.sequence(x, lg = y$lg, type = y$map_type, parent = parent),
               msg = "Requested map is not estimated")
   assert_that(length(y$lg) ==1 & is.numeric(lg))
 
