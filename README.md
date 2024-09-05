@@ -20,6 +20,8 @@ To install MAPpoly from Git Hub, use
 
 ```R
 devtools::install_github("mmollina/mappoly2", dependencies=TRUE)
+
+for myself use devtools::install_github("nndey/mappoly2_personal", dependencies=TRUE)
 ```
 
 
