@@ -414,6 +414,9 @@ plot_map <- function(x, lg = 1, type = c("mds", "genome"),
                           x$data$dosage.p1, x$data$dosage.p2,
                           x$data$alt, x$data$ref)
   
+  # Define the colors for each nucleotide base
+  var.col <- c(A = "#008000", T = "#FF0000", C = "#0000FF", G = "#FFFF00", "-" = "white")
+
   # Get the marker positions from the map
   curx <- map.info$map
   
@@ -496,6 +499,7 @@ draw_connections <- function(x1, zy.p1, zy.p2) {
     segments(x0 = x1[i], y0 = zy.p1[1], x1 = x1[i], y1 = zy.p2[1], col = "gray", lty = 1)
   }
 }
+
 
 
 #' Plot Physical vs. Genetic Distance
