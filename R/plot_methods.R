@@ -414,15 +414,32 @@ plot_map <- function(x, lg = 1, type = c("mds", "genome"),
                           x$data$dosage.p1, x$data$dosage.p2,
                           x$data$alt, x$data$ref)
   
-  # Define the colors for each nucleotide base
-  var.col <- c(A = "#008000", T = "#FF0000", C = "#0000FF", G = "#FFFF00", "-" = "white")
+  # Get the marker positions from the map
+  curx <- map.info$map
+  
+  # Set automatic xlim from the map positions if not provided
+  if (is.null(xlim)) {
+    xlim <- range(curx, na.rm = TRUE)
+  }
+
+  # If left.lim or right.lim is Inf, use the calculated xlim values
+  if (is.infinite(left.lim)) {
+    left.lim <- xlim[1]
+  }
+  if (is.infinite(right.lim)) {
+    right.lim <- xlim[2]
+  }
+
+  # Ensure finite xlim values
+  if (!is.finite(left.lim) || !is.finite(right.lim)) {
+    stop("Cannot determine plot limits (xlim). Check map data for missing or infinite values.")
+  }
 
   # Set up the plot area
   plot.new()
   plot.window(xlim = c(left.lim, right.lim), ylim = c(0, 10))
   
   # Compute x positions and adjust x control based on the number of markers
-  curx <- map.info$map
   x1 <- seq(left.lim, right.lim, length.out = length(curx))
   x.control <- adjust_x_control(diff(x1[1:2]), length(x1))
   
@@ -479,6 +496,7 @@ draw_connections <- function(x1, zy.p1, zy.p2) {
     segments(x0 = x1[i], y0 = zy.p1[1], x1 = x1[i], y1 = zy.p2[1], col = "gray", lty = 1)
   }
 }
+
 
 #' Plot Physical vs. Genetic Distance
 #'
