@@ -304,28 +304,26 @@ map_summary <- function(x,
   # Detect if the map has been estimated for the given type and parent
   v <- detect_hmm_est_map(x)
   
-  # Check if 'v' is valid
-  if (is.null(v)) {
-    stop("Map estimation could not be detected. Please check your data.")
+  # Check if 'v' is valid and doesn't contain NA values
+  if (is.null(v) || any(is.na(v))) {
+    stop("Map estimation could not be detected or contains NA values. Please check your data.")
   }
   
   # Handle missing or incomplete map estimates
   u <- apply(v[parent, , , drop = FALSE], 1, function(x) all(!is.na(x)))
   
-  # Handle cases where 'u' has missing values
-  if (any(is.na(u))) {
-    stop("Incomplete or missing map estimation. Please ensure all maps are estimated correctly.")
-  }
+  # If there are still NA values in 'u', we replace them with FALSE to avoid errors
+  u[is.na(u)] <- FALSE
   
   h <- names(u)[1:2][!u[1:2]]
 
   # Check for missing map estimation and handle error cases accordingly
   if (length(h) == 1) {
-    if (is.na(u[type]) || !u[type]) {
+    if (!u[type]) {
       stop(paste(h, "order has not been computed for", parent))
     }
   } else if (length(h) == 2) {
-    if (is.na(u[type]) || !u[type]) {
+    if (!u[type]) {
       stop(paste(h[1], "and", h[2], "orders have not been computed for", parent))
     }
   }
@@ -383,7 +381,3 @@ map_summary <- function(x,
 
   invisible(mat)  # Return the summary invisibly
 }
-
-
-
-
