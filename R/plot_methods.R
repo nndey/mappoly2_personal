@@ -476,6 +476,39 @@ plot_map <- function(x, lg = 1, type = c("mds", "genome"),
   add_legend(map.info, var.col)
 }
 
+# Helper function to adjust x.control based on the length of x1
+adjust_x_control <- function(x_control, length_x1) {
+  if (length_x1 < 150) x_control <- x_control * 0.8
+  if (length_x1 < 100) x_control <- x_control * 0.8
+  if (length_x1 < 75)  x_control <- x_control * 0.8
+  if (length_x1 < 50)  x_control <- x_control * 0.8
+  if (length_x1 < 25)  x_control <- x_control * 0.8
+  return(x_control)
+}
+
+# Helper function to plot for each parent
+plot_parent <- function(ploidy, zy, curx, phase, id.left, id.right, x1, x_control, var_col, plot_dose, dose) {
+  for (i in 1:ploidy) {
+    lines(range(x1), c(zy[i], zy[i]), lwd = 12, col = "gray")
+    y1 <- rep(zy[i], length(curx))
+    pal <- var_col[phase[id.left:id.right, i]]
+    rect(xleft = x1 - x_control, ybottom = y1 - 0.035,
+         xright = x1 + x_control, ytop = y1 + 0.035,
+         col = pal, border = NA)
+  }
+}
+
+# Helper function to add legend
+add_legend <- function(map_info, var_col) {
+  if (any(map_info$ph.p1 == "B")) {
+    legend("topleft", legend = c("A", "B"),
+           fill = c(var_col), box.lty = 0, bg = "transparent", ncol = 6)
+  } else {
+    legend("topleft", legend = c("A", "T", "C", "G", "-"),
+           fill = c(var_col, "white"), box.lty = 0, bg = "transparent", ncol = 6)
+  }
+}
+
 #' Plot Physical vs. Genetic Distance
 #'
 #' This function creates scatterplots to compare physical distance (in Mbp) with genetic
