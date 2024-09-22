@@ -360,197 +360,120 @@ prepare_map <- function(x,
 #' @importFrom grDevices rgb blues9
 #' @importFrom graphics rect
 #' @export
-plot_map <- function(x, lg = 1, map_type = c("mds", "genome"),
+plot_map <- function(x, lg = 1, type = c("mds", "genome"),
                      parent = c("p1p2", "p1", "p2"),
                      left.lim = 0, right.lim = Inf,
                      phase = TRUE, mrk.names = FALSE,
                      plot.dose = TRUE, homolog.names.adj = 3,
-                     cex = 1, xlim = NULL, main = "",...) {
-  map_type <- match.arg(map_type)
+                     cex = 1, xlim = NULL, main = "", ...) {
+  type <- match.arg(type)
   parent <- match.arg(parent)
   
-  y <- parse_lg_and_type(x,lg,map_type)
+  # Parse linkage group and map type
+  y <- parse_lg_and_type(x, lg, type)
   
- assert_that(mappoly2:::is.mapped.sequence(x, lg = y$lg, type = y$map_type, parent = parent),
-              msg = "Requested map is not estimated")
-  assert_that(length(y$lg) ==1 & is.numeric(lg))
+  # Check if the map exists for the selected linkage group, type, and parent
+  if (is.null(x$maps[[paste0("lg", lg)]][[type]][[parent]])) {
+    stop(paste("Map type", type, "is not available for linkage group", lg, "and parent", parent))
+  }
 
+  # Ensure the correct format for linkage group
+  if (length(y$lg) != 1 || !is.numeric(lg)) {
+    stop("Linkage group should be a single numeric value.")
+  }
+
+  # Check if the map has been estimated
   v <- detect_hmm_est_map(x)
   h <- c()
-  if (!v["p1", map_type, paste0("lg", lg)]) {
+  
+  if (!v["p1", type, paste0("lg", lg)]) {
     h <- c(h, "p1")
   }
-  if (!v["p2", map_type, paste0("lg", lg)]) {
+  if (!v["p2", type, paste0("lg", lg)]) {
     h <- c(h, "p2")
   }
- if (length(h) == 1) {
-    # One of the maps is missing
-    assert_that(v[parent, map_type, paste0("lg", lg)], 
-                msg = paste(h, "order has not been computed for", parent))
+
+  # Handle cases where one or both parent maps are missing
+  if (length(h) == 1) {
+    if (!v[parent, type, paste0("lg", lg)]) {
+      stop(paste(h, "order has not been computed for", parent))
+    }
   } else if (length(h) == 2) {
-    # Both maps are missing
-    assert_that(v[parent, map_type, paste0("lg", lg)], 
-                msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
+    stop(paste(h[1], "and", h[2], "orders have not been computed for", parent))
   }
 
+  # Set up the plot parameters
   old.par <- par(no.readonly = TRUE)
   on.exit(par(old.par))
+  
+  # Prepare map information for plotting
   map.info <- prepare_map(x$maps[[y$lg]][[y$type]][[parent]],
                           x$data$ploidy.p1, x$data$ploidy.p2,
                           x$data$name.p1, x$data$name.p2,
                           x$data$dosage.p1, x$data$dosage.p2,
                           x$data$alt, x$data$ref)
-  if(any(map.info$ph.p1 == "B")){
+  
+  # Determine the colors for variants
+  if (any(map.info$ph.p1 == "B")) {
     var.col <- c(A = "black", B = "darkgray")
   } else {
     var.col <- c(A = "#008000", T = "#FF0000", C = "#0000FF", G = "#FFFF00")
   }
+
+  # Plotting logic starts here
   ploidy <- max(c(map.info$ploidy.p1, map.info$ploidy.p2))
   x <- map.info$map
   lab <- names(x)
   zy <- seq(0, 0.6, by = 0.12)
-  zy.p1 <- zy[1:map.info$ploidy.p1] +1.8 + (0.3 * ((map.info$ploidy.p2/2)-1))
+  zy.p1 <- zy[1:map.info$ploidy.p1] + 1.8 + (0.3 * ((map.info$ploidy.p2 / 2) - 1))
   zy.p2 <- zy[1:map.info$ploidy.p2] + 1.1
   pp <- map.info$ph.p1
   pq <- map.info$ph.p2
   d.p1 <- map.info$d.p1
   d.p2 <- map.info$d.p2
+  
   x1 <- abs(left.lim - x)
   x2 <- abs(right.lim - x)
   id.left <- which(x1 == min(x1))[1]
   id.right <- rev(which(x2 == min(x2)))[1]
-  par(mai = c(1,0.15,0,0), mar = c(4.5,homolog.names.adj,1,2))
+  
+  par(mai = c(1, 0.15, 0, 0), mar = c(4.5, homolog.names.adj, 1, 2))
   curx <- x[id.left:id.right]
-  layout(mat  = matrix(c(2,4,1,3), ncol = 2), heights = c(10, 1), widths = c(1, 10))
-  #layout(mat  = matrix(c(4,2,3, 1), ncol = 2), heights = c(2, 10), widths = c(1, 10))
-  if(is.null(xlim)){
+  
+  layout(mat = matrix(c(2, 4, 1, 3), ncol = 2), heights = c(10, 1), widths = c(1, 10))
+  if (is.null(xlim)) {
     xlim <- range(curx)
   }
+  
   max.y <- 4.0
-  plot(x = curx,
-       y = rep(.5,length(curx)),
-       type = "n" ,
-       ylim = c(.25, max.y),
-       axes = FALSE,
-       xlab = "Distance (cM)",
-       ylab = "",
-       xlim = xlim)
-  lines(c(x[id.left], x[id.right]), c(.5, .5), lwd = 15, col = "gray")
-  points(x = curx,
-         y = rep(.5,length(curx)),
-         xlab = "", ylab = "",
-         pch = "|", cex = 1.5,
-         ylim = c(0,2))
+  plot(x = curx, y = rep(0.5, length(curx)), type = "n",
+       ylim = c(0.25, max.y), axes = FALSE,
+       xlab = "Distance (cM)", ylab = "", xlim = xlim)
+  
+  lines(c(x[id.left], x[id.right]), c(0.5, 0.5), lwd = 15, col = "gray")
+  points(x = curx, y = rep(0.5, length(curx)), pch = "|", cex = 1.5)
   axis(side = 1)
-  ##Parent1
+
+  # Parent 1 plotting
   x1 <- seq(x[id.left], x[id.right], length.out = length(curx))
-  x.control <- diff(x1[1:2])/2
-  if(length(x1) < 150)
-    x.control <- x.control * .8
-  if(length(x1) < 100)
-    x.control <- x.control * .8
-  if(length(x1) < 75)
-    x.control <- x.control * .8
-  if(length(x1) < 50)
-    x.control <- x.control * .8
-  if(length(x1) < 25)
-    x.control <- x.control * .8
-  for(i in 1:map.info$ploidy.p2)
-  {
-    lines(range(x1), c(zy.p2[i], zy.p2[i]), lwd = 12, col = "gray")
-    y1 <- rep(zy.p2[i], length(curx))
-    pal <- var.col[pq[id.left:id.right,i]]
-    rect(xleft = x1 - x.control,
-         ybottom = y1 -.035,
-         xright = x1 + x.control,
-         ytop = y1 +.035,
-         col = pal,
-         border = NA)
-  }
-  #connecting allelic variants to markers
-  for(i in 1:length(x1))
-    lines(c(curx[i], x1[i]), c(0.575, zy.p2[1]-.05), lwd = 0.2)
-  ####
-  if(plot.dose){
-    y <- zy.p2[map.info$ploidy.p2]+0.1 - ((map.info$ploidy.p2/2 - 1)*0.005)+d.p2[id.left:id.right]/20
-    y.l <- zy.p2[map.info$ploidy.p2]+0.1 - ((map.info$ploidy.p2/2 - 1)*0.005)+ c(0:map.info$ploidy.p2)[id.left:id.right]/20
-    #text(x = min(x1) - 1, y = mean(y.l), "doses", srt = 90)
-    for(i in 1:length(y.l)){
-      text(x = min(x1)-1,y=y.l[i],i-1, cex = .7)
-      lines(range(x1), c(y.l[i], y.l[i]), lwd = .5, col = "gray")
-    }
+  x.control <- diff(x1[1:2]) / 2
+  x.control <- adjust_x_control(x.control, length(x1))
 
-    points(x = x1,
-           y = y,
-           col = "darkgray",
-           #col = d.col[as.character(d.p2[id.left:id.right])],
-           pch = 19, cex = .7)
-  }
-  ##Parent2
-  for(i in 1:map.info$ploidy.p1)
-  {
-    lines(range(x1), c(zy.p1[i], zy.p1[i]), lwd = 12, col = "gray")
-    y1 <- rep(zy.p1[i], length(curx))
-    pal <- var.col[pp[id.left:id.right,i]]
-    rect(xleft = x1 - x.control,
-         ybottom = y1 -.035,
-         xright = x1 + x.control,
-         ytop = y1 +.035,
-         col = pal,
-         border = NA)
-  }
-  ####
-  if(plot.dose){
-    y <- zy.p1[map.info$ploidy.p1]+0.1 -((map.info$ploidy.p1/2 - 1)*0.005)+d.p1[id.left:id.right]/20
-    y.l <- zy.p1[map.info$ploidy.p1]+0.1 -((map.info$ploidy.p1/2 - 1)*0.005)+c(0:map.info$ploidy.p1)[id.left:id.right]/20
-    #text(x = min(x1) - 1, y = mean(y.l), "doses", srt = 90)
-    for(i in 1:length(y.l)){
-      text(x = min(x1)-1,y=y.l[i],i-1, cex = .7)
-      lines(range(x1), c(y.l[i], y.l[i]), lwd = .5, col = "gray")
-    }
-    points(x = x1,
-           y = y,
-           col = "darkgray",
-           #col = d.col[as.character(d.p1[id.left:id.right])],
-           pch = 19, cex = .7)
-  }
-  if(mrk.names)
-    text(x = x1,
-         y = rep(max(y)+.1, length(x1)),
-         labels = names(curx),
-         srt = 90, adj = 0, cex = cex *.6)
-  par(mar = c(4.5,1,1,0), xpd = TRUE)
-  plot(x = 0,
-       y = 0,
-       type = "n" ,
-       axes = FALSE,
-       ylab = "",
-       xlab = "",
-       ylim = c(.25, max.y))
+  plot_parent(map.info$ploidy.p2, zy.p2, curx, pq, id.left, id.right, x1, x.control, var.col, plot.dose, d.p2)
 
-  mtext(text = main, side = 2, at = mean(c(zy.p2, zy.p2)), line = -1, font = 4, cex = cex , adj = c(0,0))
-  mtext(text = map.info$name.p2, side = 4, at = mean(zy.p2), line = -1, font = 4)
-  for(i in 1:map.info$ploidy.p2)
-    mtext(colnames(map.info$ph.p2)[i], line = 1, at = zy.p2[i], side = 4, las = 2, cex = 0.7 * cex)
-  mtext(text = map.info$name.p1, side = 4, at = mean(zy.p1), line = -1, font = 4)
-  for(i in 1:map.info$ploidy.p1)
-    mtext(colnames(map.info$ph.p1)[i],  line = 1, at = zy.p1[i], side = 4, las = 2, cex = 0.7 * cex)
-  par(mar = c(0,0,0,0), xpd = FALSE)
-  plot(x = curx,
-       y = rep(.5,length(curx)),
-       type = "n" ,
-       axes = FALSE,
-       xlab = "",
-       ylab = "")
-  if(any(map.info$ph.p1 == "B")){
-    legend("topleft", legend = c("A", "B"),
-           fill  = c(var.col), #title = "Variants",
-           box.lty = 0, bg = "transparent", ncol = 6)
-  } else {
-    legend("topleft", legend = c("A", "T", "C", "G", "-"),
-           fill  = c(var.col, "white"),# title = "Nucleotides",
-           box.lty = 0, bg = "transparent", ncol = 6)
+  # Parent 2 plotting
+  plot_parent(map.info$ploidy.p1, zy.p1, curx, pp, id.left, id.right, x1, x.control, var.col, plot.dose, d.p1)
+  
+  if (mrk.names) {
+    text(x = x1, y = rep(max(y) + 0.1, length(x1)),
+         labels = names(curx), srt = 90, adj = 0, cex = cex * 0.6)
   }
+
+  par(mar = c(4.5, 1, 1, 0), xpd = TRUE)
+  plot(x = 0, y = 0, type = "n", axes = FALSE, ylim = c(0.25, max.y))
+  
+  mtext(text = main, side = 2, at = mean(c(zy.p2, zy.p2)), line = -1, font = 4, cex = cex)
+  add_legend(map.info, var.col)
 }
 
 #' Plot Physical vs. Genetic Distance
