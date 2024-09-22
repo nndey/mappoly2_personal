@@ -406,99 +406,136 @@ plot_map <- function(x, lg = 1, type = c("mds", "genome"),
   # Set up the plot parameters
   old.par <- par(no.readonly = TRUE)
   on.exit(par(old.par))
-  
-  # Prepare map information for plotting
+
   map.info <- prepare_map(x$maps[[y$lg]][[y$type]][[parent]],
                           x$data$ploidy.p1, x$data$ploidy.p2,
                           x$data$name.p1, x$data$name.p2,
                           x$data$dosage.p1, x$data$dosage.p2,
                           x$data$alt, x$data$ref)
   
-  # Define the colors for each nucleotide base
-  var.col <- c(A = "#008000", T = "#FF0000", C = "#0000FF", G = "#FFFF00", "-" = "white")
-
-  # Get the marker positions from the map
-  curx <- map.info$map
-  
-  # Set automatic xlim from the map positions if not provided
-  if (is.null(xlim)) {
-    xlim <- range(curx, na.rm = TRUE)
+  # Color scheme for bases
+  if (any(map.info$ph.p1 == "B")) {
+    var.col <- c(A = "black", B = "darkgray")
+  } else {
+    var.col <- c(A = "#008000", T = "#FF0000", C = "#0000FF", G = "#FFFF00")
   }
 
-  # If left.lim or right.lim is Inf, use the calculated xlim values
-  if (is.infinite(left.lim)) {
-    left.lim <- xlim[1]
-  }
-  if (is.infinite(right.lim)) {
-    right.lim <- xlim[2]
-  }
-
-  # Ensure finite xlim values
-  if (!is.finite(left.lim) || !is.finite(right.lim)) {
-    stop("Cannot determine plot limits (xlim). Check map data for missing or infinite values.")
-  }
-
-  # Set up the plot area
-  plot.new()
-  plot.window(xlim = c(left.lim, right.lim), ylim = c(0, 10))
-  
-  # Compute x positions and adjust x control based on the number of markers
-  x1 <- seq(left.lim, right.lim, length.out = length(curx))
-  x.control <- adjust_x_control(diff(x1[1:2]), length(x1))
-  
-  # Parent 1 (p1) plotting
-  zy.p1 <- seq(7, 4, length.out = map.info$ploidy.p1)
+  ploidy <- max(c(map.info$ploidy.p1, map.info$ploidy.p2))
+  x <- map.info$map
+  zy <- seq(0, 0.6, by = 0.12)
+  zy.p1 <- zy[1:map.info$ploidy.p1] + 1.8 + (0.3 * ((map.info$ploidy.p2 / 2) - 1))
+  zy.p2 <- zy[1:map.info$ploidy.p2] + 1.1
   pp <- map.info$ph.p1
-  
-  plot_parent_blocks(pp, zy.p1, var.col, map.info, left.lim, right.lim, x1, x.control, "p1")
-
-  # Parent 2 (p2) plotting
-  zy.p2 <- seq(3, 1, length.out = map.info$ploidy.p2)
   pq <- map.info$ph.p2
+  d.p1 <- map.info$d.p1
+  d.p2 <- map.info$d.p2
+  x1 <- abs(left.lim - x)
+  x2 <- abs(right.lim - x)
+  id.left <- which(x1 == min(x1))[1]
+  id.right <- rev(which(x2 == min(x2)))[1]
+  par(mai = c(1, 0.15, 0, 0), mar = c(4.5, homolog.names.adj, 1, 2))
+  curx <- x[id.left:id.right]
 
-  plot_parent_blocks(pq, zy.p2, var.col, map.info, left.lim, right.lim, x1, x.control, "p2")
+  layout(mat = matrix(c(2, 4, 1, 3), ncol = 2), heights = c(10, 1), widths = c(1, 10))
 
-  # Add labels for the parents and markers
-  text(-1, 7.5, labels = x$data$name.p1, srt = 90, adj = 0, xpd = TRUE)
-  text(-1, 1.5, labels = x$data$name.p2, srt = 90, adj = 0, xpd = TRUE)
+  if (is.null(xlim)) {
+    xlim <- range(curx)
+  }
+  
+  max.y <- 4.0
+  plot(x = curx,
+       y = rep(.5, length(curx)),
+       type = "n",
+       ylim = c(.25, max.y),
+       axes = FALSE,
+       xlab = "Distance (cM)",
+       ylab = "",
+       xlim = xlim)
 
-  # Draw connections between markers (lines between p1 and p2)
-  draw_connections(x1, zy.p1, zy.p2)
-
-  # Add the distance scale (cM) and legend
+  lines(c(x[id.left], x[id.right]), c(.5, .5), lwd = 15, col = "gray")
+  points(x = curx, y = rep(.5, length(curx)), pch = "|", cex = 1.5)
   axis(side = 1)
-  legend("bottom", legend = c("A", "T", "C", "G", "-"),
-         fill = c("#008000", "#FF0000", "#0000FF", "#FFFF00", "white"),
-         horiz = TRUE, box.lty = 0, bg = "transparent", xpd = TRUE)
-}
 
-# Helper function to adjust x.control based on the number of markers
-adjust_x_control <- function(x.control, length_x1) {
-  if (length_x1 < 150) x.control <- x.control * 0.8
-  if (length_x1 < 100) x.control <- x.control * 0.8
-  if (length_x1 < 75)  x.control <- x.control * 0.8
-  if (length_x1 < 50)  x.control <- x.control * 0.8
-  if (length_x1 < 25)  x.control <- x.control * 0.8
-  return(x.control)
-}
+  ## Parent1
+  x1 <- seq(x[id.left], x[id.right], length.out = length(curx))
+  x.control <- diff(x1[1:2]) / 2
+  if (length(x1) < 150) x.control <- x.control * 0.8
+  if (length(x1) < 100) x.control <- x.control * 0.8
+  if (length(x1) < 75) x.control <- x.control * 0.8
+  if (length(x1) < 50) x.control <- x.control * 0.8
+  if (length(x1) < 25) x.control <- x.control * 0.8
+  
+  for (i in 1:map.info$ploidy.p2) {
+    lines(range(x1), c(zy.p2[i], zy.p2[i]), lwd = 12, col = "gray")
+    y1 <- rep(zy.p2[i], length(curx))
+    pal <- var.col[pq[id.left:id.right, i]]
+    rect(xleft = x1 - x.control, ybottom = y1 - .035,
+         xright = x1 + x.control, ytop = y1 + .035,
+         col = pal, border = NA)
+  }
 
-# Helper function to plot the parent blocks
-plot_parent_blocks <- function(phase_data, zy_pos, var_col, map_info, left_lim, right_lim, x1, x_control, parent_name) {
-  for (i in 1:length(zy_pos)) {
-    for (j in seq_along(x1)) {
-      rect(xleft = x1[j] - x_control, ybottom = zy_pos[i] - 0.5,
-           xright = x1[j] + x_control, ytop = zy_pos[i] + 0.5,
-           col = var_col[phase_data[j, i]], border = NA)
+  ## Connecting allelic variants to markers
+  for (i in 1:length(x1)) {
+    lines(c(curx[i], x1[i]), c(0.575, zy.p2[1] - .05), lwd = 0.2)
+  }
+
+  ## Plot doses for Parent 2
+  if (plot.dose) {
+    y <- zy.p2[map.info$ploidy.p2] + 0.1 - ((map.info$ploidy.p2 / 2 - 1) * 0.005) + d.p2[id.left:id.right] / 20
+    for (i in 1:length(y)) {
+      points(x = x1, y = y, col = "darkgray", pch = 19, cex = .7)
     }
   }
-}
 
-# Helper function to draw connections between p1 and p2 markers
-draw_connections <- function(x1, zy.p1, zy.p2) {
-  for (i in 1:length(x1)) {
-    segments(x0 = x1[i], y0 = zy.p1[1], x1 = x1[i], y1 = zy.p2[1], col = "gray", lty = 1)
+  ## Parent 1
+  for (i in 1:map.info$ploidy.p1) {
+    lines(range(x1), c(zy.p1[i], zy.p1[i]), lwd = 12, col = "gray")
+    y1 <- rep(zy.p1[i], length(curx))
+    pal <- var.col[pp[id.left:id.right, i]]
+    rect(xleft = x1 - x.control, ybottom = y1 - .035,
+         xright = x1 + x.control, ytop = y1 + .035,
+         col = pal, border = NA)
+  }
+
+  ## Plot doses for Parent 1
+  if (plot.dose) {
+    y <- zy.p1[map.info$ploidy.p1] + 0.1 - ((map.info$ploidy.p1 / 2 - 1) * 0.005) + d.p1[id.left:id.right] / 20
+    for (i in 1:length(y)) {
+      points(x = x1, y = y, col = "darkgray", pch = 19, cex = .7)
+    }
+  }
+
+  if (mrk.names) {
+    text(x = x1, y = rep(max(y) + .1, length(x1)), labels = names(curx), srt = 90, adj = 0, cex = cex * .6)
+  }
+
+  ## Add text and legends
+  par(mar = c(4.5, 1, 1, 0), xpd = TRUE)
+  plot(x = 0, y = 0, type = "n", axes = FALSE, ylab = "", xlab = "", ylim = c(.25, max.y))
+
+  mtext(text = main, side = 2, at = mean(c(zy.p2, zy.p2)), line = -1, font = 4, cex = cex, adj = c(0, 0))
+  mtext(text = map.info$name.p2, side = 4, at = mean(zy.p2), line = -1, font = 4)
+  for (i in 1:map.info$ploidy.p2) {
+    mtext(colnames(map.info$ph.p2)[i], line = 1, at = zy.p2[i], side = 4, las = 2, cex = 0.7 * cex)
+  }
+  mtext(text = map.info$name.p1, side = 4, at = mean(zy.p1), line = -1, font = 4)
+  for (i in 1:map.info$ploidy.p1) {
+    mtext(colnames(map.info$ph.p1)[i], line = 1, at = zy.p1[i], side = 4, las = 2, cex = 0.7 * cex)
+  }
+
+  par(mar = c(0, 0, 0, 0), xpd = FALSE)
+  plot(x = curx, y = rep(.5, length(curx)), type = "n", axes = FALSE, xlab = "", ylab = "")
+
+  ## Add legend
+  if (any(map.info$ph.p1 == "B")) {
+    legend("topleft", legend = c("A", "B"),
+           fill = c(var.col), box.lty = 0, bg = "transparent", ncol = 6)
+  } else {
+    legend("topleft", legend = c("A", "T", "C", "G", "-"),
+           fill = c(var.col, "white"), box.lty = 0, bg = "transparent", ncol = 6)
   }
 }
+
 
 
 
