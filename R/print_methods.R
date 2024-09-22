@@ -281,9 +281,9 @@ print.mappoly2.sequence <- function(x,
 #'          and interpretation.
 #' @export
 map_summary <- function(x,
-                        type = c("both", "mds", "genome"),  # Default to "both"
-                        parent = c("p1p2", "p1", "p2")) {  # Default to "p1p2"
-  
+                        type = c("both", "mds", "genome"),
+                        parent = c("p1p2", "p1", "p2")) {
+
   # Ensure that 'x' is a valid mappoly2 sequence
   if (!is.mappoly2.sequence(x)) {
     stop("The input data is not a valid mappoly2 sequence")
@@ -303,16 +303,29 @@ map_summary <- function(x,
 
   # Detect if the map has been estimated for the given type and parent
   v <- detect_hmm_est_map(x)
-  u <- apply(v[parent, , , drop = FALSE], 1, all)
+  
+  # Check if 'v' is valid
+  if (is.null(v)) {
+    stop("Map estimation could not be detected. Please check your data.")
+  }
+  
+  # Handle missing or incomplete map estimates
+  u <- apply(v[parent, , , drop = FALSE], 1, function(x) all(!is.na(x)))
+  
+  # Handle cases where 'u' has missing values
+  if (any(is.na(u))) {
+    stop("Incomplete or missing map estimation. Please ensure all maps are estimated correctly.")
+  }
+  
   h <- names(u)[1:2][!u[1:2]]
 
   # Check for missing map estimation and handle error cases accordingly
   if (length(h) == 1) {
-    if (!u[type]) {
+    if (is.na(u[type]) || !u[type]) {
       stop(paste(h, "order has not been computed for", parent))
     }
   } else if (length(h) == 2) {
-    if (!u[type]) {
+    if (is.na(u[type]) || !u[type]) {
       stop(paste(h[1], "and", h[2], "orders have not been computed for", parent))
     }
   }
@@ -370,6 +383,7 @@ map_summary <- function(x,
 
   invisible(mat)  # Return the summary invisibly
 }
+
 
 
 
