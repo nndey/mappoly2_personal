@@ -293,28 +293,54 @@ map_summary <- function(x,
   type <- match.arg(type)
   parent <- match.arg(parent)
 
-  # If both types are requested, recursively call map_summary for "mds" and "genome"
+  # If both types are requested, check if either has been completed
   if (type == "both") {
-    x1 <- map_summary(x, type = "mds", parent)
-    cat("\n")
-    x2 <- map_summary(x, type = "genome", parent)
-    return(invisible(list(mds = x1, genome = x2)))
+    completed_summaries <- list()
+    
+    if ("mds" %in% dimnames(x$maps[[1]])[[2]]) {
+      x1 <- tryCatch({
+        map_summary(x, type = "mds", parent)
+      }, error = function(e) {
+        message("Skipping MDS map summary: ", e$message)
+        NULL
+      })
+      completed_summaries$mds <- x1
+    }
+    
+    if ("genome" %in% dimnames(x$maps[[1]])[[2]]) {
+      x2 <- tryCatch({
+        map_summary(x, type = "genome", parent)
+      }, error = function(e) {
+        message("Skipping Genome map summary: ", e$message)
+        NULL
+      })
+      completed_summaries$genome <- x2
+    }
+    
+    if (length(completed_summaries) == 0) {
+      stop("No valid map summary data available for either MDS or Genome.")
+    }
+    
+    return(invisible(completed_summaries))
   }
 
   # Detect if the map has been estimated for the given type and parent
   v <- detect_hmm_est_map(x)
   
-  # Check if 'v' is valid and doesn't contain NA values
-  if (is.null(v) || any(is.na(v))) {
-    stop("Map estimation could not be detected or contains NA values. Please check your data.")
+  # Handle cases where only one type (genome or mds) is computed
+  if (!type %in% dimnames(v)[[2]]) {
+    stop(paste("Map type", type, "has not been computed for linkage group", parent))
   }
   
-  # Handle missing or incomplete map estimates
-  u <- apply(v[parent, , , drop = FALSE], 1, function(x) all(!is.na(x)))
+  # Extract mapping status and ensure NA values are replaced with FALSE
+  u <- apply(v[parent, , , drop = FALSE], 1, function(x) {
+    all(!is.na(x)) && all(x)  # Ensure no NA values and all are TRUE
+  })
   
-  # If there are still NA values in 'u', we replace them with FALSE to avoid errors
+  # Ensure 'u' doesn't have NA values by replacing them with FALSE
   u[is.na(u)] <- FALSE
   
+  # Identify which map computations are missing
   h <- names(u)[1:2][!u[1:2]]
 
   # Check for missing map estimation and handle error cases accordingly
