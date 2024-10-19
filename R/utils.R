@@ -484,15 +484,52 @@ mp_pal <- function(n) {
 }
 
 
-detect_hmm_est_map <- function(x){
+detect_hmm_est_map <- function(x) {
+  # Ensure the input is of the correct type
   assert_that(is.mappoly2.sequence(x))
-  z <- lapply(x$maps, function(x) sapply(x, function(x) sapply(x[3:5], function(x) !is.null(x$hmm.phase))))
+  
+  # Debugging: Print structure of the input sequence
+  cat("Debug: Structure of input maps:\n")
+  print(str(x$maps)) 
+  
+  # Main logic: Check for hmm.phase in the map structure
+  z <- lapply(x$maps, function(map) {
+    sapply(map, function(linkage_group) {
+      sapply(linkage_group[3:5], function(phase_info) {
+        !is.null(phase_info$hmm.phase)  # Check if hmm.phase exists
+      })
+    })
+  })
+  
+  # Debugging: Check the structure of `z`
+  cat("Debug: Structure of `z` after lapply:\n")
+  print(str(z)) 
+  
+  # Flatten `z` into a vector and reshape into a 3D array
   v <- unlist(z)
-  dim(v) <- c(3,3,length(z))
-  dimnames(v) = list(c("p1", "p2", "p1p2"), c("mds", "genome", "both"), names(z))
-  for(i in 1:dim(v)[3])
-      v[,3,i] <- apply(v[,1:2,i],1, all)
-  v
+  
+  # Ensure that the length of `v` can be reshaped into a 3x3xN array
+  if (length(v) %% 9 != 0) {
+    stop("Error: Dimensions of `v` are incorrect. Length of v should be a multiple of 9.")
+  }
+  
+  # Reshape into 3D array: [p1/p2/p1p2] x [mds/genome/both] x [linkage groups]
+  dim(v) <- c(3, 3, length(z))
+  dimnames(v) <- list(c("p1", "p2", "p1p2"), c("mds", "genome", "both"), names(z))
+  
+  # Debugging: Check for NA values and print the structure of `v`
+  cat("Debug: Checking for NA values in `v`:\n")
+  if (any(is.na(v))) {
+    stop("Error: NA values found in `v`. Please check the input data.")
+  }
+  
+  # Combine 'mds' and 'genome' into 'both' based on logical AND across dimensions
+  for (i in 1:dim(v)[3]) {
+    v[, 3, i] <- apply(v[, 1:2, i], 1, all)
+  }
+  
+  # Return the final array
+  return(v)
 }
 
 
