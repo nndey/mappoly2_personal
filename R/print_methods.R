@@ -304,16 +304,12 @@ map_summary <- function(x,
   # Try to get the map and validate the structure of v
   tryCatch({
     v <- detect_hmm_est_map(x)
-    # Inspect structure of v to handle it appropriately
-    print(paste("Structure of 'v':", class(v)))
-    print(str(v))
   }, error = function(e) {
     stop("Error in detecting map: ", e$message)
   })
   
-  # Now handle the 3D array correctly
+  # Handle the 3D array correctly
   if (is.array(v) && length(dim(v)) == 3) {
-    # Check if parent and type are valid dimensions
     if (!parent %in% dimnames(v)[[1]] || !type %in% dimnames(v)[[2]]) {
       stop("Invalid 'parent' or 'type' specification.")
     }
@@ -365,17 +361,25 @@ map_summary <- function(x,
   md <- sapply(mrk.id, function(y, x) sapply(get_dosage_type(x, mrk.names = y), length), x)
   md <- cbind(md, apply(md, 1, sum, na.rm = TRUE))
   
-  # Build the final matrix
+  # Make sure all columns have the same length (13, for the 12 linkage groups plus "Total")
+  chrom_col <- c(sapply(mrk.id, function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), collapse = "/")), "")
+  ml_col <- round(c(ml, sum(ml)), 1)
+  markers_per_cm <- c(y, round(total_y, 3))
+  md <- rbind(md, apply(md, 2, sum))  # Add totals for each dosage type
+  mg_col <- c(mg, max(mg))
+  mn_col <- c(mn, sum(mn))
+  
+  # Build the final matrix with consistent row lengths
   mat <- data.frame("LG" = c(names(w), "Total"),
-                    "Chrom" = c(sapply(mrk.id, function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), collapse = "/")), ""),
-                    "Map_length_(cM)" = round(c(ml, sum(ml)), 1),
-                    "Markers/cM" = y,
+                    "Chrom" = chrom_col,
+                    "Map_length_(cM)" = ml_col,
+                    "Markers/cM" = markers_per_cm,
                     "Simplex_P1" = md[1,],
                     "Simplex_P2" = md[2,],
                     "Double-simplex" = md[3,],
                     "Multiplex" = md[4,],
-                    "Total" = c(mn, sum(mn)),
-                    "Max_gap" = c(mg, max(mg)),
+                    "Total" = mn_col,
+                    "Max_gap" = mg_col,
                     check.names = FALSE, stringsAsFactors = FALSE)
   
   # Generate proper parent labels
@@ -395,7 +399,7 @@ map_summary <- function(x,
   
   invisible(mat)
 }
-                                                 
+                                            
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
   print_matrix(x$comp.mat)
