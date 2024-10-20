@@ -339,8 +339,8 @@ map_summary <- function(x,
   ml <- sapply(m, sum, na.rm = TRUE)  # Total map length for each LG
   mn <- sapply(mrk.id, function(y) length(y))  # Total number of markers for each LG
   
-  # Compute the Markers/cM ratio
-  markers_per_cm <- sapply(ml, function(len, num) if (len == 0) 0 else num / len, num = mn)
+  # Fix the computation for Markers/cM ratio
+  markers_per_cm <- sapply(seq_along(ml), function(i) if (ml[i] == 0) 0 else mn[i] / ml[i])
   total_markers_per_cm <- if (sum(ml) == 0) 0 else sum(mn) / sum(ml)
   markers_per_cm <- c(round(markers_per_cm, 3), round(total_markers_per_cm, 3))
   
@@ -400,7 +400,7 @@ map_summary <- function(x,
   
   invisible(mat)
 }
-                                     
+                                    
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
   print_matrix(x$comp.mat)
