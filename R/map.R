@@ -376,8 +376,11 @@ augment_phased_map <- function(x,
                          verbose = verbose,
                          n.ind = n.ind)
   }
+
+  # Handling parallel and serial processing safely with error handling
   if(ncpus > 1) {
     cl <- makeCluster(ncpus)
+    on.exit(stopCluster(cl))  # Ensure cluster is stopped even if error occurs
     mapResult <- parLapply(cl, mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
                                                                            x$geno,
                                                                            x$max.phases,
@@ -390,7 +393,6 @@ augment_phased_map <- function(x,
                                                                            x$thresh.rf.to.insert,
                                                                            x$verbose,
                                                                            x$n.ind))
-    stopCluster(cl)
   } else {
     mapResult <- lapply(mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
                                                                     x$geno,
@@ -405,13 +407,14 @@ augment_phased_map <- function(x,
                                                                     x$verbose,
                                                                     x$n.ind))
   }
+
   for(i in names(mrk.all.lg)){
     # Update the hmm phase in the original x$maps object
     x$maps[[i]][[y$type]]$p1p2$hmm.phase[[1]] <- mapResult[[i]]
-
   }
+
   if(reestimate.hmm){
-    cat("\nReestimating multilocus map ...\n")
+    if (verbose) cat("\nReestimating multilocus map ...\n")
     x <- mapping(x,
                  lg = y$lg,
                  parent = "p1p2",
@@ -419,7 +422,7 @@ augment_phased_map <- function(x,
                  tol = final.tol,
                  ncpus = ncpus,
                  error = final.error,
-                 verbose = FALSE)
+                 verbose = FALSE)  # Silent by default unless otherwise needed
   }
   return(x)
 }
@@ -486,7 +489,7 @@ augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
   if(verbose) pb <- utils::txtProgressBar(min = 0, max = length(L1), style = 3)
 
   # Iterating over each set of phasing results
-  for(j in 1:length(L1)) {
+  for(j in seq_along(L1)) {  # Updated for clarity in iteration
     # Extract genotype data for the current marker
     G <- geno[mrk.id[j], , drop = TRUE]
     u <- match(unlist(flanking[[mrk.id[j]]]), mrk.pos)
@@ -509,8 +512,8 @@ augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
     count <- 1
 
     # Nested loops for computing phasing results
-    for(l in 1:nrow(L1[[j]])) {
-      for(k in 1:nrow(L2[[j]])) {
+    for(l in seq_len(nrow(L1[[j]]))) {
+      for(k in seq_len(nrow(L2[[j]]))) {
         PH <- list(L1[[j]][l, ], L2[[j]][k, ])
         z[[count]] <- est_hmm_map_biallelic_insert_marker(PH, G, pedigree, homolog_prob,
                                                           rf = c(0.01, 0.01), idx, verbose = FALSE,
@@ -536,7 +539,6 @@ augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
 
   # Close the progress bar if verbose mode is enabled
   if(verbose) close(pb)
-
 
   # Selecting the list of phasing results based on loglike criteria
   selected.list <- phasing_results[sapply(phasing_results, function(x) {
@@ -585,13 +587,15 @@ augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
       rownames(map$p1) <- rownames(map$p2) <- c(preceding, j, succeeding)
     }
   }
+
+  # Reset potentially redundant fields
   map$loglike <- NULL
   map$rf <- NULL
   map$error <- NULL
   map$haploprob <- NULL
+
   return(map)
 }
-
 
 #' Merge Single Parent Genetic Maps
 #'
