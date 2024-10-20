@@ -329,8 +329,9 @@ map_summary <- function(x, type = "both", parent = "p1p2") {
     y[is.infinite(y)] <- 0
     mat = data.frame(LG = c(names(w), "Total"), Chrom = c(sapply(mrk.id, 
         function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), 
-            collapse = "/")), ""), Map_length_(cM) = round(c(ml, 
-        sum(ml)), 1), Markers/cM = y, Simplex_P1 = md[1, ], 
+    collapse = "/")), ""), 
+Map_length_cM = round(c(ml, sum(ml)), 1),
+Markers/cM = y, Simplex_P1 = md[1, ], 
         Simplex_P2 = md[2, ], Double-simplex = md[3, ], Multiplex = md[4, 
             ], Total = c(mn, sum(mn)), Max_gap = c(mg, max(mg)), 
         check.names = FALSE, stringsAsFactors = FALSE)
