@@ -339,7 +339,7 @@ map_summary <- function(x,
   ml <- sapply(m, sum, na.rm = TRUE)  # Total map length for each LG
   mn <- sapply(mrk.id, function(y) length(y))  # Total number of markers for each LG
   
-  # Fix the computation for Markers/cM ratio
+  # Compute the Markers/cM ratio
   markers_per_cm <- sapply(seq_along(ml), function(i) if (ml[i] == 0) 0 else mn[i] / ml[i])
   total_markers_per_cm <- if (sum(ml) == 0) 0 else sum(mn) / sum(ml)
   markers_per_cm <- c(round(markers_per_cm, 3), round(total_markers_per_cm, 3))
@@ -348,27 +348,12 @@ map_summary <- function(x,
   md <- sapply(mrk.id, function(y, x) sapply(get_dosage_type(x, mrk.names = y), length), x)
   md <- cbind(md, apply(md, 1, sum, na.rm = TRUE))
   
-  # Debugging: Print the lengths of each key variable to diagnose the issue
-  print(paste("Length of mrk.id:", length(mrk.id)))  # Should be 12
-  print(paste("Length of ml:", length(ml)))          # Should be 12
-  print(paste("Length of mg:", length(mg)))          # Should be 12
-  print(paste("Length of mn:", length(mn)))          # Should be 12
-  print(paste("Length of md (rows):", nrow(md)))     # Should be 4 (Simplex P1, Simplex P2, etc.)
-  print(paste("Length of markers_per_cm:", length(markers_per_cm)))  # Should be 13
-  
   # Prepare columns for the table
   chrom_col <- c(sapply(mrk.id, function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), collapse = "/")), "")
   ml_col <- round(c(ml, sum(ml)), 1)
   md <- rbind(md, apply(md, 2, sum))  # Add totals for each dosage type
   mg_col <- c(mg, max(mg))
   mn_col <- c(mn, sum(mn))
-  
-  # Debugging: Print the lengths of the columns to identify the mismatch
-  print(paste("Length of chrom_col:", length(chrom_col)))  # Should be 13
-  print(paste("Length of ml_col:", length(ml_col)))        # Should be 13
-  print(paste("Length of markers_per_cm:", length(markers_per_cm)))  # Should be 13
-  print(paste("Length of mg_col:", length(mg_col)))        # Should be 13
-  print(paste("Length of mn_col:", length(mn_col)))        # Should be 13
   
   # Create the final matrix with consistent row lengths
   mat <- data.frame("LG" = c(names(w), "Total"),
