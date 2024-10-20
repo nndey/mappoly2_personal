@@ -295,9 +295,9 @@ map_summary <- function(x,
   
   # Handle case when both "mds" and "genome" are requested
   if (type == "both") {
-    x1 <- map_summary(x, type = "mds", parent = parent) # Explicitly pass 'parent'
+    x1 <- map_summary(x, type = "mds", parent = parent)
     cat("\n")
-    x2 <- map_summary(x, type = "genome", parent = parent) # Explicitly pass 'parent'
+    x2 <- map_summary(x, type = "genome", parent = parent)
     return(invisible(list(mds = x1, genome = x2)))
   }
   
@@ -319,19 +319,6 @@ map_summary <- function(x,
     stop("Unexpected structure of 'v'. Expected a 3D array.")
   }
   
-  # Ensure that 'u' has valid dimensions
-  if (length(u) < 2) {
-    stop("The extracted 'u' has fewer than two elements (linkage groups or chromosomes).")
-  }
-  
-  # Check for orders that have not been computed for the parent
-  h <- names(u)[1:2][!u[1:2]]
-  if (length(h) == 1) {
-    assert_that(u[1], msg = paste(h, "order has not been computed for", parent))
-  } else if (length(h) > 1) {
-    assert_that(u[1] && u[2], msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
-  }
-  
   # Initialize markers and map length structures
   w <- lapply(x$maps, function(y) y[[type]])
   mrk.id <- m <- vector("list", length(w))
@@ -348,28 +335,27 @@ map_summary <- function(x,
     }
   }
   
-  mg <- sapply(m, max, na.rm = TRUE)
-  ml <- sapply(m, sum, na.rm = TRUE)
-  mn <- sapply(mrk.id, function(y) length(y))
+  mg <- sapply(m, max, na.rm = TRUE)  # Max gap between markers
+  ml <- sapply(m, sum, na.rm = TRUE)  # Total map length for each LG
+  mn <- sapply(mrk.id, function(y) length(y))  # Total number of markers for each LG
   
-  # Handle the markers/cM ratio safely, avoiding division by zero
-  y <- sapply(ml, function(len, num) if (len == 0) 0 else num / len, num = mn)
-  total_y <- if (sum(ml) == 0) 0 else sum(mn) / sum(ml)
-  y <- c(round(y, 3), round(total_y, 3))
+  # Compute the Markers/cM ratio
+  markers_per_cm <- sapply(ml, function(len, num) if (len == 0) 0 else num / len, num = mn)
+  total_markers_per_cm <- if (sum(ml) == 0) 0 else sum(mn) / sum(ml)
+  markers_per_cm <- c(round(markers_per_cm, 3), round(total_markers_per_cm, 3))
   
-  # Calculate marker dosage types
+  # Calculate marker dosage types (Simplex P1, Simplex P2, Double-simplex, Multiplex)
   md <- sapply(mrk.id, function(y, x) sapply(get_dosage_type(x, mrk.names = y), length), x)
   md <- cbind(md, apply(md, 1, sum, na.rm = TRUE))
   
-  # Make sure all columns have the same length (13, for the 12 linkage groups plus "Total")
+  # Prepare columns for the table
   chrom_col <- c(sapply(mrk.id, function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), collapse = "/")), "")
   ml_col <- round(c(ml, sum(ml)), 1)
-  markers_per_cm <- c(y, round(total_y, 3))
   md <- rbind(md, apply(md, 2, sum))  # Add totals for each dosage type
   mg_col <- c(mg, max(mg))
   mn_col <- c(mn, sum(mn))
   
-  # Build the final matrix with consistent row lengths
+  # Create the final matrix with the appropriate columns
   mat <- data.frame("LG" = c(names(w), "Total"),
                     "Chrom" = chrom_col,
                     "Map_length_(cM)" = ml_col,
@@ -386,20 +372,20 @@ map_summary <- function(x,
   p <- c(x$data$name.p1, x$data$name.p2, paste(x$data$name.p1, x$data$name.p2, sep = " x "))
   names(p) <- c("p1", "p2", "p1p2")
   
-  # Print the matrix based on the 'type'
+  # Print the matrix in the desired format based on the 'type'
   if (type == "mds") {
-    print_matrix(mat, spaces = 0, zero.print = ".",
+    print_matrix(mat, spaces = 2, zero.print = ".",
                  row.names = FALSE, equal.space = FALSE,
                  header = FALSE, footer = TRUE, title = paste0("MDS --- ", p[parent]))
   } else if (type == "genome") {
-    print_matrix(mat, spaces = 0, zero.print = ".",
+    print_matrix(mat, spaces = 2, zero.print = ".",
                  row.names = FALSE, equal.space = FALSE,
                  header = FALSE, footer = TRUE, title = paste0("Genome --- ", p[parent]))
   }
   
   invisible(mat)
 }
-                                            
+                                         
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
   print_matrix(x$comp.mat)
