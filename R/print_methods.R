@@ -311,36 +311,29 @@ map_summary <- function(x,
     stop("Error in detecting map: ", e$message)
   })
   
-  # Now, based on 'v's structure, handle its extraction correctly
-  if (is.array(v) || is.matrix(v)) {
-    # If v is a matrix or array, extract relevant rows based on the parent
-    if (!parent %in% rownames(v)) {
-      stop("Invalid 'parent' specification. No corresponding data in 'v'.")
+  # Now handle the 3D array correctly
+  if (is.array(v) && length(dim(v)) == 3) {
+    # Check if parent and type are valid dimensions
+    if (!parent %in% dimnames(v)[[1]] || !type %in% dimnames(v)[[2]]) {
+      stop("Invalid 'parent' or 'type' specification.")
     }
-    u <- v[parent, , drop = FALSE]
-  } else if (is.list(v)) {
-    # If v is a list, handle it differently
-    if (!parent %in% names(v)) {
-      stop("Invalid 'parent' specification. No corresponding data in 'v'.")
-    }
-    u <- v[[parent]]
+    # Extract the relevant slice from the 3D array
+    u <- v[parent, type, , drop = FALSE]  # Slice the third dimension for linkage groups
   } else {
-    stop("Unexpected structure of 'v'. Expected matrix, array, or list.")
+    stop("Unexpected structure of 'v'. Expected a 3D array.")
   }
   
-  # Ensure that u has valid dimensions
-  if (is.matrix(u) || is.array(u)) {
-    if (ncol(u) < 2) {
-      stop("The vector 'u' has fewer than two columns (linkage groups or chromosomes).")
-    }
+  # Ensure that 'u' has valid dimensions
+  if (length(u) < 2) {
+    stop("The extracted 'u' has fewer than two elements (linkage groups or chromosomes).")
   }
   
   # Check for orders that have not been computed for the parent
-  h <- if (is.matrix(u) || is.array(u)) colnames(u)[1:2][!u[1,1:2]] else names(u)[1:2][!u[1:2]]
+  h <- names(u)[1:2][!u[1:2]]
   if (length(h) == 1) {
-    assert_that(u[type, 1], msg = paste(h, "order has not been computed for", parent))
+    assert_that(u[1], msg = paste(h, "order has not been computed for", parent))
   } else if (length(h) > 1) {
-    assert_that(u[type, 1] && u[type, 2], msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
+    assert_that(u[1] && u[2], msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
   }
   
   # Initialize markers and map length structures
@@ -402,8 +395,7 @@ map_summary <- function(x,
   
   invisible(mat)
 }
-
-                                                    
+                                                 
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
   print_matrix(x$comp.mat)
