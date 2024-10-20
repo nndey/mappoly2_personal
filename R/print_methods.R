@@ -304,26 +304,39 @@ map_summary <- function(x,
   # Try to get the map and validate the structure of v
   tryCatch({
     v <- detect_hmm_est_map(x)
-    assert_that(is.matrix(v) || is.array(v), msg = "The result of detect_hmm_est_map is not a matrix or array.")
+    # Inspect structure of v to handle it appropriately
+    print(paste("Structure of 'v':", class(v)))
+    print(str(v))
   }, error = function(e) {
     stop("Error in detecting map: ", e$message)
   })
   
-  # Ensure v has valid dimensions for the 'parent' argument
-  if (!parent %in% rownames(v)) {
-    stop("Invalid 'parent' specification. No corresponding data in 'v'.")
+  # Now, based on 'v's structure, handle its extraction correctly
+  if (is.array(v) || is.matrix(v)) {
+    # If v is a matrix or array, extract relevant rows based on the parent
+    if (!parent %in% rownames(v)) {
+      stop("Invalid 'parent' specification. No corresponding data in 'v'.")
+    }
+    u <- v[parent, , drop = FALSE]
+  } else if (is.list(v)) {
+    # If v is a list, handle it differently
+    if (!parent %in% names(v)) {
+      stop("Invalid 'parent' specification. No corresponding data in 'v'.")
+    }
+    u <- v[[parent]]
+  } else {
+    stop("Unexpected structure of 'v'. Expected matrix, array, or list.")
   }
   
-  # Extract the relevant row for the selected parent
-  u <- v[parent,,drop=FALSE]
-  
-  # Ensure we have at least 2 columns (chromosomes or linkage groups) to check
-  if (ncol(u) < 2) {
-    stop("The vector 'u' has fewer than two columns (linkage groups or chromosomes).")
+  # Ensure that u has valid dimensions
+  if (is.matrix(u) || is.array(u)) {
+    if (ncol(u) < 2) {
+      stop("The vector 'u' has fewer than two columns (linkage groups or chromosomes).")
+    }
   }
   
   # Check for orders that have not been computed for the parent
-  h <- colnames(u)[1:2][!u[1,1:2]]  # Checking the first row for the first two linkage groups/columns
+  h <- if (is.matrix(u) || is.array(u)) colnames(u)[1:2][!u[1,1:2]] else names(u)[1:2][!u[1:2]]
   if (length(h) == 1) {
     assert_that(u[type, 1], msg = paste(h, "order has not been computed for", parent))
   } else if (length(h) > 1) {
@@ -389,6 +402,7 @@ map_summary <- function(x,
   
   invisible(mat)
 }
+
                                                     
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
