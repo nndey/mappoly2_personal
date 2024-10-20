@@ -284,9 +284,13 @@ map_summary <- function(x, type = "both", parent = "p1p2") {
     # Ensure that x is a mappoly2.sequence object
     assert_that(is.mappoly2.sequence(x))
     
-    # Match the argument values for type and parent
-    type <- match.arg(type)
-    parent <- match.arg(parent)
+    # Define valid options for type and parent
+    valid_types <- c("both", "mds", "genome")
+    valid_parents <- c("p1", "p2", "p1p2")
+    
+    # Match the argument values for type and parent against valid options
+    type <- match.arg(type, valid_types)
+    parent <- match.arg(parent, valid_parents)
     
     # Handle "both" type by recursively calling map_summary for "mds" and "genome"
     if (type == "both") {
@@ -361,7 +365,6 @@ map_summary <- function(x, type = "both", parent = "p1p2") {
     
     invisible(mat)
 }
-
                                                           
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
