@@ -304,23 +304,30 @@ map_summary <- function(x,
   # Try to get the map and validate the structure of v
   tryCatch({
     v <- detect_hmm_est_map(x)
-    assert_that(is.array(v), msg = "The result of detect_hmm_est_map is not an array.")
-    assert_that(dim(v)[1] >= 2 && dim(v)[2] >= 2, msg = "Unexpected dimensions of 'v'.")
+    assert_that(is.matrix(v) || is.array(v), msg = "The result of detect_hmm_est_map is not a matrix or array.")
   }, error = function(e) {
     stop("Error in detecting map: ", e$message)
   })
   
-  u <- apply(v[parent,,,drop = FALSE], 1, all)
+  # Ensure v has valid dimensions for the 'parent' argument
+  if (!parent %in% rownames(v)) {
+    stop("Invalid 'parent' specification. No corresponding data in 'v'.")
+  }
   
-  # Handle the case where 'u' has fewer than two elements
-  if (length(u) < 2) stop("The vector 'u' has fewer than two elements.")
-  h <- names(u)[1:2][!u[1:2]]
+  # Extract the relevant row for the selected parent
+  u <- v[parent,,drop=FALSE]
   
-  # Check if order has been computed
+  # Ensure we have at least 2 columns (chromosomes or linkage groups) to check
+  if (ncol(u) < 2) {
+    stop("The vector 'u' has fewer than two columns (linkage groups or chromosomes).")
+  }
+  
+  # Check for orders that have not been computed for the parent
+  h <- colnames(u)[1:2][!u[1,1:2]]  # Checking the first row for the first two linkage groups/columns
   if (length(h) == 1) {
-    assert_that(u[type], msg = paste(h, "order has not been computed for", parent))
-  } else {
-    assert_that(u[type], msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
+    assert_that(u[type, 1], msg = paste(h, "order has not been computed for", parent))
+  } else if (length(h) > 1) {
+    assert_that(u[type, 1] && u[type, 2], msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
   }
   
   # Initialize markers and map length structures
@@ -382,7 +389,7 @@ map_summary <- function(x,
   
   invisible(mat)
 }
-                                                          
+                                                    
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
   print_matrix(x$comp.mat)
