@@ -284,9 +284,11 @@ map_summary <- function(x, type = "both", parent = "p1p2") {
     # Ensure that x is a mappoly2.sequence object
     assert_that(is.mappoly2.sequence(x))
     
+    # Match the argument values for type and parent
     type <- match.arg(type)
     parent <- match.arg(parent)
     
+    # Handle "both" type by recursively calling map_summary for "mds" and "genome"
     if (type == "both") {
         x1 <- map_summary(x, type = "mds", parent)
         cat("\n")
@@ -297,60 +299,69 @@ map_summary <- function(x, type = "both", parent = "p1p2") {
     # Use the detect_hmm_est_map function
     v <- detect_hmm_est_map(x)
     
+    # Check if the required order is computed
     u <- apply(v[parent, , , drop = FALSE], 1, all)
     h <- names(u)[1:2][!u[1:2]]
-    if (length(h) == 1) 
-        assert_that(u[type], msg = paste(h, "order has not been computed for", 
-            parent))
-    else assert_that(u[type], msg = paste(h[1], "and", h[2], 
-        "orders have not been computed for", parent))
+    if (length(h) == 1) {
+        assert_that(u[type], msg = paste(h, "order has not been computed for", parent))
+    } else {
+        assert_that(u[type], msg = paste(h[1], "and", h[2], "orders have not been computed for", parent))
+    }
     
-    # Remaining code as it was before
+    # Process map data
     w <- lapply(x$maps, function(y) y[[type]])
     mrk.id <- m <- vector("list", length(w))
     names(mrk.id) <- names(m) <- names(w)
+    
     for (i in names(w)) {
         mrk.id[[i]] <- rownames(w[[i]][[parent]]$hmm.phase[[1]]$p1)
         if (is.mapped.sequence(x, i, type, parent)) {
-            m[[i]] <- round(imf_h(w[[i]][[parent]]$hmm.phase[[1]]$rf), 
-                1)
-        }
-        else {
+            m[[i]] <- round(imf_h(w[[i]][[parent]]$hmm.phase[[1]]$rf), 1)
+        } else {
             m[[i]] <- 0
         }
     }
+    
+    # Calculate max gap, map length, number of markers, etc.
     mg <- sapply(m, max)
     ml <- sapply(m, sum)
     mn <- sapply(mrk.id, function(y) length(y))
-    md <- sapply(mrk.id, function(y, x) sapply(get_dosage_type(x, 
-        mrk.names = y), length), x)
+    md <- sapply(mrk.id, function(y, x) sapply(get_dosage_type(x, mrk.names = y), length), x)
     md <- cbind(md, apply(md, 1, sum))
+    
     y <- c(round(mn/ml, 3), round(sum(mn/sum(ml))))
     y[is.infinite(y)] <- 0
-    mat = data.frame(LG = c(names(w), "Total"), Chrom = c(sapply(mrk.id, 
-        function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), 
-    collapse = "/")), ""), 
-Map_length_cM = round(c(ml, sum(ml)), 1),
-Markers/cM = y, Simplex_P1 = md[1, ], 
-        Simplex_P2 = md[2, ], Double-simplex = md[3, ], Multiplex = md[4, 
-            ], Total = c(mn, sum(mn)), Max_gap = c(mg, max(mg)), 
-        check.names = FALSE, stringsAsFactors = FALSE)
     
-    p <- c(x$data$name.p1, x$data$name.p2, paste(x$data$name.p1, 
-        x$data$name.p2, sep = " x "))
+    # Create the summary matrix
+    mat <- data.frame(
+        LG = c(names(w), "Total"), 
+        Chrom = c(sapply(mrk.id, function(y) paste0(embedded_to_numeric(unique(x$data$chrom[y])), collapse = "/")), ""), 
+        Map_length_cM = round(c(ml, sum(ml)), 1), 
+        `Markers/cM` = y, 
+        Simplex_P1 = md[1, ], 
+        Simplex_P2 = md[2, ], 
+        `Double-simplex` = md[3, ], 
+        Multiplex = md[4, ], 
+        Total = c(mn, sum(mn)), 
+        Max_gap = c(mg, max(mg)), 
+        check.names = FALSE, 
+        stringsAsFactors = FALSE
+    )
+    
+    # Parent names
+    p <- c(x$data$name.p1, x$data$name.p2, paste(x$data$name.p1, x$data$name.p2, sep = " x "))
     names(p) <- c("p1", "p2", "p1p2")
     
-    if (type == "mds") 
-        print_matrix(mat, spaces = 0, zero.print = ".", row.names = FALSE, 
-            equal.space = FALSE, header = FALSE, footer = TRUE, 
-            title = paste0("MDS --- ", p[parent]))
-    else if (type == "genome") 
-        print_matrix(mat, spaces = 0, zero.print = ".", row.names = FALSE, 
-            equal.space = FALSE, header = FALSE, footer = TRUE, 
-            title = paste0("Genome --- ", p[parent]))
+    # Print the matrix based on the type
+    if (type == "mds") {
+        print_matrix(mat, spaces = 0, zero.print = ".", row.names = FALSE, equal.space = FALSE, header = FALSE, footer = TRUE, title = paste0("MDS --- ", p[parent]))
+    } else if (type == "genome") {
+        print_matrix(mat, spaces = 0, zero.print = ".", row.names = FALSE, equal.space = FALSE, header = FALSE, footer = TRUE, title = paste0("Genome --- ", p[parent]))
+    }
     
     invisible(mat)
 }
+
                                                           
 #' @export
 print.mappoly2.order.comparison <- function(x, ...){
