@@ -294,155 +294,6 @@ mapping_one <- function(g,
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom assertthat assert_that
 #' @export
-augment_phased_map <- function(x,
-                               lg = NULL,
-                               type = c("mds", "genome"),
-                               ncpus = 1,
-                               thresh.LOD.ph = 5,
-                               thresh.LOD.rf = 5,
-                               thresh.rf = 0.5,
-                               max.phases = 5,
-                               thresh.LOD.ph.to.insert = 10,
-                               thresh.dist.to.insert = NULL,
-                               reestimate.hmm = TRUE,
-                               tol = 10e-3,
-                               final.tol = 10e-4,
-                               final.error = NULL,
-                               verbose = TRUE) {
-  # Extract the linkage group and type information from the input object
-  y <- parse_lg_and_type(x, lg, type)
-
-  # Get all markers for the specified linkage group and type
-  mrk.all.lg <- get_markers_from_ordered_sequence(x, y$lg, y$type, "p1p2")
-
-  # Generate a list of phased map information for each linkage group
-  p1p2.map <- lapply(x$maps[y$lg], function(map_item) map_item[[y$type]]$p1p2$hmm.phase[[1]])
-
-  # Debugging: Check which linkage groups/maps are missing haploprob
-  missing_haploprob <- which(sapply(p1p2.map, function(x) is.null(x$haploprob)))
-
-  if (length(missing_haploprob) > 0) {
-    stop("Missing haploprob in the following linkage groups: ", 
-         paste(missing_haploprob, collapse = ", "))
-  }
-
-  # Extract individual names from the screened data
-  ind.names <- x$data$screened.data$ind.names
-  n.ind <- length(ind.names)  # Number of individuals
-
-  if (is.null(final.error))
-    final.error <- x$maps[[1]][[y$type]]$p1p2$hmm.phase[[1]]$error
-
-  # Extract genotype dosage information and replace NA values with -1
-  g <- x$data$geno.dose[, ind.names]
-  g[is.na(g)] <- -1  # Handling missing data in genotype dosages
-
-  # Get ploidy and dosage information for both parent 1 and parent 2
-  ploidy.p1 <- x$data$ploidy.p1
-  ploidy.p2 <- x$data$ploidy.p2
-  dosage.p1 <- x$data$dosage.p1
-  dosage.p2 <- x$data$dosage.p2
-
-  # Retrieving how many alternate alleles share homologs based
-  # on pairwise linkage analysis
-  M <- lapply(mrk.all.lg,
-              function(mrk.seq) filter_rf_matrix(x$data,
-                                                 type = "sh",
-                                                 thresh.LOD.ph,
-                                                 thresh.LOD.rf,
-                                                 thresh.rf,
-                                                 mrk.names = mrk.seq))
-  # splitting data into linkage groups
-  g <- lapply(mrk.all.lg, function(x) g[x, ])
-
-  # Preparing data to serial or parallel submission
-  mapData <- vector("list", length(mrk.all.lg))
-  names(mapData) <- names(mrk.all.lg)
-
-  for (i in names(mrk.all.lg)) {
-    if (is.null(thresh.dist.to.insert)) {
-      thresh.rf.to.insert <- max(p1p2.map[[i]]$rf)
-    } else {
-      thresh.rf.to.insert <- mf_h(thresh.dist.to.insert)
-    }
-    mapData[[i]] <- list(map = p1p2.map[[i]],
-                         mrk = mrk.all.lg[[i]],
-                         mat = M[[i]],
-                         geno = g[[i]],
-                         max.phases = max.phases,
-                         ploidy.p1 = ploidy.p1,
-                         ploidy.p2 = ploidy.p2,
-                         dosage.p1 = dosage.p1,
-                         dosage.p2 = dosage.p2,
-                         tol = tol,
-                         thresh.LOD.ph.to.insert = thresh.LOD.ph.to.insert,
-                         thresh.rf.to.insert = thresh.rf.to.insert,
-                         verbose = verbose,
-                         n.ind = n.ind)
-  }
-
-  # Handling parallel and serial processing safely with error handling
-  if (ncpus > 1) {
-    cl <- makeCluster(ncpus)
-    on.exit(stopCluster(cl))  # Ensure cluster is stopped even if error occurs
-
-    # Export the augment_phased_map_one and any necessary functions to each cluster node
-    clusterExport(cl, c("augment_phased_map_one", "find_flanking_markers", 
-                        "filter_rf_matrix", "phasing_one", "est_hmm_map_biallelic_insert_marker",
-                        "mf_h", "parse_lg_and_type", "get_markers_from_ordered_sequence"))
-
-    # Ensure functions are available in each node
-    clusterCall(cl, function() {
-      library(parallel)  # Make sure required packages are loaded
-    })
-
-    mapResult <- parLapply(cl, mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
-                                                                           x$geno,
-                                                                           x$max.phases,
-                                                                           x$ploidy.p1,
-                                                                           x$ploidy.p2,
-                                                                           x$dosage.p1,
-                                                                           x$dosage.p2,
-                                                                           x$tol,
-                                                                           x$thresh.LOD.ph.to.insert,
-                                                                           x$thresh.rf.to.insert,
-                                                                           x$verbose,
-                                                                           x$n.ind))
-  } else {
-    mapResult <- lapply(mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
-                                                                    x$geno,
-                                                                    x$max.phases,
-                                                                    x$ploidy.p1,
-                                                                    x$ploidy.p2,
-                                                                    x$dosage.p1,
-                                                                    x$dosage.p2,
-                                                                    x$tol,
-                                                                    x$thresh.LOD.ph.to.insert,
-                                                                    x$thresh.rf.to.insert,
-                                                                    x$verbose,
-                                                                    x$n.ind))
-  }
-
-  for (i in names(mrk.all.lg)) {
-    # Update the hmm phase in the original x$maps object
-    x$maps[[i]][[y$type]]$p1p2$hmm.phase[[1]] <- mapResult[[i]]
-  }
-
-  if (reestimate.hmm) {
-    if (verbose) cat("\nReestimating multilocus map ...\n")
-    x <- mapping(x,
-                 lg = y$lg,
-                 parent = "p1p2",
-                 type = y$type,
-                 tol = final.tol,
-                 ncpus = ncpus,
-                 error = final.error,
-                 verbose = FALSE)  # Silent by default unless otherwise needed
-  }
-  return(x)
-}
-
-
 augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
                                    ploidy.p1, ploidy.p2, dosage.p1,
                                    dosage.p2, tol, thresh.LOD.ph.to.insert,
@@ -610,6 +461,154 @@ augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
   map$haploprob <- NULL
 
   return(map)
+}
+
+augment_phased_map <- function(x,
+                               lg = NULL,
+                               type = c("mds", "genome"),
+                               ncpus = 1,
+                               thresh.LOD.ph = 5,
+                               thresh.LOD.rf = 5,
+                               thresh.rf = 0.5,
+                               max.phases = 5,
+                               thresh.LOD.ph.to.insert = 10,
+                               thresh.dist.to.insert = NULL,
+                               reestimate.hmm = TRUE,
+                               tol = 10e-3,
+                               final.tol = 10e-4,
+                               final.error = NULL,
+                               verbose = TRUE) {
+  # Extract the linkage group and type information from the input object
+  y <- parse_lg_and_type(x, lg, type)
+
+  # Get all markers for the specified linkage group and type
+  mrk.all.lg <- get_markers_from_ordered_sequence(x, y$lg, y$type, "p1p2")
+
+  # Generate a list of phased map information for each linkage group
+  p1p2.map <- lapply(x$maps[y$lg], function(map_item) map_item[[y$type]]$p1p2$hmm.phase[[1]])
+
+  # Debugging: Check which linkage groups/maps are missing haploprob
+  missing_haploprob <- which(sapply(p1p2.map, function(x) is.null(x$haploprob)))
+
+  if (length(missing_haploprob) > 0) {
+    stop("Missing haploprob in the following linkage groups: ", 
+         paste(missing_haploprob, collapse = ", "))
+  }
+
+  # Extract individual names from the screened data
+  ind.names <- x$data$screened.data$ind.names
+  n.ind <- length(ind.names)  # Number of individuals
+
+  if (is.null(final.error))
+    final.error <- x$maps[[1]][[y$type]]$p1p2$hmm.phase[[1]]$error
+
+  # Extract genotype dosage information and replace NA values with -1
+  g <- x$data$geno.dose[, ind.names]
+  g[is.na(g)] <- -1  # Handling missing data in genotype dosages
+
+  # Get ploidy and dosage information for both parent 1 and parent 2
+  ploidy.p1 <- x$data$ploidy.p1
+  ploidy.p2 <- x$data$ploidy.p2
+  dosage.p1 <- x$data$dosage.p1
+  dosage.p2 <- x$data$dosage.p2
+
+  # Retrieving how many alternate alleles share homologs based
+  # on pairwise linkage analysis
+  M <- lapply(mrk.all.lg,
+              function(mrk.seq) filter_rf_matrix(x$data,
+                                                 type = "sh",
+                                                 thresh.LOD.ph,
+                                                 thresh.LOD.rf,
+                                                 thresh.rf,
+                                                 mrk.names = mrk.seq))
+  # splitting data into linkage groups
+  g <- lapply(mrk.all.lg, function(x) g[x, ])
+
+  # Preparing data to serial or parallel submission
+  mapData <- vector("list", length(mrk.all.lg))
+  names(mapData) <- names(mrk.all.lg)
+
+  for (i in names(mrk.all.lg)) {
+    if (is.null(thresh.dist.to.insert)) {
+      thresh.rf.to.insert <- max(p1p2.map[[i]]$rf)
+    } else {
+      thresh.rf.to.insert <- mf_h(thresh.dist.to.insert)
+    }
+    mapData[[i]] <- list(map = p1p2.map[[i]],
+                         mrk = mrk.all.lg[[i]],
+                         mat = M[[i]],
+                         geno = g[[i]],
+                         max.phases = max.phases,
+                         ploidy.p1 = ploidy.p1,
+                         ploidy.p2 = ploidy.p2,
+                         dosage.p1 = dosage.p1,
+                         dosage.p2 = dosage.p2,
+                         tol = tol,
+                         thresh.LOD.ph.to.insert = thresh.LOD.ph.to.insert,
+                         thresh.rf.to.insert = thresh.rf.to.insert,
+                         verbose = verbose,
+                         n.ind = n.ind)
+  }
+
+  # Handling parallel and serial processing safely with error handling
+  if (ncpus > 1) {
+    cl <- makeCluster(ncpus)
+    on.exit(stopCluster(cl))  # Ensure cluster is stopped even if error occurs
+
+    # Export the augment_phased_map_one and any necessary functions to each cluster node
+    clusterExport(cl, c("augment_phased_map_one", "find_flanking_markers", 
+                        "filter_rf_matrix", "phasing_one", "est_hmm_map_biallelic_insert_marker",
+                        "mf_h", "parse_lg_and_type", "get_markers_from_ordered_sequence"))
+
+    # Ensure functions are available in each node
+    clusterCall(cl, function() {
+      library(parallel)  # Make sure required packages are loaded
+    })
+
+    mapResult <- parLapply(cl, mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
+                                                                           x$geno,
+                                                                           x$max.phases,
+                                                                           x$ploidy.p1,
+                                                                           x$ploidy.p2,
+                                                                           x$dosage.p1,
+                                                                           x$dosage.p2,
+                                                                           x$tol,
+                                                                           x$thresh.LOD.ph.to.insert,
+                                                                           x$thresh.rf.to.insert,
+                                                                           x$verbose,
+                                                                           x$n.ind))
+  } else {
+    mapResult <- lapply(mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
+                                                                    x$geno,
+                                                                    x$max.phases,
+                                                                    x$ploidy.p1,
+                                                                    x$ploidy.p2,
+                                                                    x$dosage.p1,
+                                                                    x$dosage.p2,
+                                                                    x$tol,
+                                                                    x$thresh.LOD.ph.to.insert,
+                                                                    x$thresh.rf.to.insert,
+                                                                    x$verbose,
+                                                                    x$n.ind))
+  }
+
+  for (i in names(mrk.all.lg)) {
+    # Update the hmm phase in the original x$maps object
+    x$maps[[i]][[y$type]]$p1p2$hmm.phase[[1]] <- mapResult[[i]]
+  }
+
+  if (reestimate.hmm) {
+    if (verbose) cat("\nReestimating multilocus map ...\n")
+    x <- mapping(x,
+                 lg = y$lg,
+                 parent = "p1p2",
+                 type = y$type,
+                 tol = final.tol,
+                 ncpus = ncpus,
+                 error = final.error,
+                 verbose = FALSE)  # Silent by default unless otherwise needed
+  }
+  return(x)
 }
 
 
