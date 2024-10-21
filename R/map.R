@@ -295,6 +295,7 @@ mapping_one <- function(g,
 #' @importFrom assertthat assert_that
 #' @export
 # Ensure the augment_phased_map_one function is explicitly defined in the global environment
+library(parallel)
 augment_phased_map <- function(x,
                                lg = NULL,
                                type = c("mds", "genome"),
