@@ -308,7 +308,7 @@ augment_phased_map <- function(x,
                                tol = 10e-3,
                                final.tol = 10e-4,
                                final.error = NULL,
-                               verbose = TRUE){
+                               verbose = TRUE) {
   # Extract the linkage group and type information from the input object
   y <- parse_lg_and_type(x, lg, type)
 
@@ -318,19 +318,23 @@ augment_phased_map <- function(x,
   # Generate a list of phased map information for each linkage group
   p1p2.map <- lapply(x$maps[y$lg], function(map_item) map_item[[y$type]]$p1p2$hmm.phase[[1]])
 
-  # Check if haploprob is available in the phased map
-  assert_that(all(sapply(p1p2.map, function(x) !is.null(x$haploprob))),
-              msg = "Compute haplotype probability for initial sequence")
+  # Debugging: Check which linkage groups/maps are missing haploprob
+  missing_haploprob <- which(sapply(p1p2.map, function(x) is.null(x$haploprob)))
+
+  if (length(missing_haploprob) > 0) {
+    stop("Missing haploprob in the following linkage groups: ", 
+         paste(missing_haploprob, collapse = ", "))
+  }
 
   # Extract individual names from the screened data
   ind.names <- x$data$screened.data$ind.names
   n.ind <- length(ind.names)  # Number of individuals
 
-  if(is.null(final.error))
+  if (is.null(final.error))
     final.error <- x$maps[[1]][[y$type]]$p1p2$hmm.phase[[1]]$error
 
   # Extract genotype dosage information and replace NA values with -1
-  g <- x$data$geno.dose[,ind.names]
+  g <- x$data$geno.dose[, ind.names]
   g[is.na(g)] <- -1  # Handling missing data in genotype dosages
 
   # Get ploidy and dosage information for both parent 1 and parent 2
@@ -355,8 +359,8 @@ augment_phased_map <- function(x,
   mapData <- vector("list", length(mrk.all.lg))
   names(mapData) <- names(mrk.all.lg)
 
-  for(i in names(mrk.all.lg)){
-    if(is.null(thresh.dist.to.insert)) {
+  for (i in names(mrk.all.lg)) {
+    if (is.null(thresh.dist.to.insert)) {
       thresh.rf.to.insert <- max(p1p2.map[[i]]$rf)
     } else {
       thresh.rf.to.insert <- mf_h(thresh.dist.to.insert)
@@ -378,9 +382,15 @@ augment_phased_map <- function(x,
   }
 
   # Handling parallel and serial processing safely with error handling
-  if(ncpus > 1) {
+  if (ncpus > 1) {
     cl <- makeCluster(ncpus)
     on.exit(stopCluster(cl))  # Ensure cluster is stopped even if error occurs
+
+    # Export the augment_phased_map_one and any necessary functions to each cluster node
+    clusterExport(cl, c("augment_phased_map_one", "find_flanking_markers", 
+                        "filter_rf_matrix", "phasing_one", "est_hmm_map_biallelic_insert_marker",
+                        "mf_h", "parse_lg_and_type", "get_markers_from_ordered_sequence"))
+
     mapResult <- parLapply(cl, mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
                                                                            x$geno,
                                                                            x$max.phases,
@@ -408,12 +418,12 @@ augment_phased_map <- function(x,
                                                                     x$n.ind))
   }
 
-  for(i in names(mrk.all.lg)){
+  for (i in names(mrk.all.lg)) {
     # Update the hmm phase in the original x$maps object
     x$maps[[i]][[y$type]]$p1p2$hmm.phase[[1]] <- mapResult[[i]]
   }
 
-  if(reestimate.hmm){
+  if (reestimate.hmm) {
     if (verbose) cat("\nReestimating multilocus map ...\n")
     x <- mapping(x,
                  lg = y$lg,
@@ -426,6 +436,7 @@ augment_phased_map <- function(x,
   }
   return(x)
 }
+
 
 
 augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
