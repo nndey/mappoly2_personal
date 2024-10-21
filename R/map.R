@@ -294,10 +294,12 @@ mapping_one <- function(g,
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom assertthat assert_that
 #' @export
-augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
+# Ensure the augment_phased_map_one function is explicitly defined in the global environment
+augment_phased_map_one <<- function(map, mrk, mat, geno, max.phases,
                                    ploidy.p1, ploidy.p2, dosage.p1,
                                    dosage.p2, tol, thresh.LOD.ph.to.insert,
                                    thresh.rf.to.insert, verbose, n.ind) {
+  # Function body as defined earlier
   # Extract positioned and unpositioned markers
   mrk.pos <- rownames(map$p1)  # Positioned markers
   mrk.id <- setdiff(mrk, mrk.pos)  # Markers to be positioned
