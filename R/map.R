@@ -391,6 +391,11 @@ augment_phased_map <- function(x,
                         "filter_rf_matrix", "phasing_one", "est_hmm_map_biallelic_insert_marker",
                         "mf_h", "parse_lg_and_type", "get_markers_from_ordered_sequence"))
 
+    # Ensure functions are available in each node
+    clusterCall(cl, function() {
+      library(parallel)  # Make sure required packages are loaded
+    })
+
     mapResult <- parLapply(cl, mapData, function(x) augment_phased_map_one(x$map, x$mrk, x$mat,
                                                                            x$geno,
                                                                            x$max.phases,
@@ -438,11 +443,10 @@ augment_phased_map <- function(x,
 }
 
 
-
 augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
                                    ploidy.p1, ploidy.p2, dosage.p1,
                                    dosage.p2, tol, thresh.LOD.ph.to.insert,
-                                   thresh.rf.to.insert, verbose, n.ind){
+                                   thresh.rf.to.insert, verbose, n.ind) {
   # Extract positioned and unpositioned markers
   mrk.pos <- rownames(map$p1)  # Positioned markers
   mrk.id <- setdiff(mrk, mrk.pos)  # Markers to be positioned
@@ -607,6 +611,7 @@ augment_phased_map_one <- function(map, mrk, mat, geno, max.phases,
 
   return(map)
 }
+
 
 #' Merge Single Parent Genetic Maps
 #'
